@@ -14,17 +14,22 @@ def register(user_in: schemas.UserCreate, db = Depends(get_db)):
     Registers a new user in MongoDB, secures the password, and returns the profile details.
     """
     # Check if user already exists
-    existing = db.users.find_one({"email": user_in.email})
+    existing = db.users.find_one({"$or": [{"email": user_in.email}, {"username": user_in.username}]})
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+            detail="Email or username already registered"
         )
+    
+    if user_in.role not in ["admin", "manager", "user"]:
+        raise HTTPException(status_code=400, detail="Invalid role. Must be 'admin', 'manager', or 'user'.")
     
     hashed_pwd = utils.hash(user_in.password)
     user_dict = {
+        "username": user_in.username,
         "email": user_in.email,
         "password": hashed_pwd,
+        "role": user_in.role,
         "created_at": datetime.now(timezone.utc)
     }
     
@@ -40,14 +45,18 @@ def login(user_credentials: OAuth2PasswordRequestForm = Depends(), db = Depends(
     # Find user document in MongoDB users collection
     user = db.users.find_one({"email": user_credentials.username})
     if not user:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid Credentials")
+        # Fallback to check username if email doesn't match
+        user = db.users.find_one({"username": user_credentials.username})
+        if not user:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid Credentials")
         
     if not utils.verify(user_credentials.password, user["password"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid Credentials")
         
-    # Generate JWT access token with the string value of MongoDB _id
+    # Generate JWT access token with the string value of MongoDB _id and role
     user_id = str(user["_id"])
-    access_token = oauth2.create_access_token(data={"user_id": user_id})
+    role = user.get("role", "user")
+    access_token = oauth2.create_access_token(data={"user_id": user_id, "role": role})
     
     return {"access_token": access_token, "token_type": "bearer"}
 

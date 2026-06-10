@@ -26,9 +26,10 @@ def verify_access_token(token: str, credentials_exception):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         id: str = str(payload.get("user_id"))
+        role: str = payload.get("role")
         if id is None:
             raise credentials_exception
-        token_data = schemas.TokenData(id=id)
+        token_data = schemas.TokenData(id=id, role=role)
     except JWTError as e:
         print(e)
         raise credentials_exception
@@ -53,4 +54,21 @@ def get_current_user(token: str = Depends(oauth2_scheme), db = Depends(database.
         
     # Convert _id to string for API response compatibility
     user["id"] = str(user["_id"])
+    user["role"] = user.get("role", "user")
+    user["username"] = user.get("username", "unknown")
     return user
+
+def require_admin(current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions. Admin role required.")
+    return current_user
+
+def require_manager(current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "manager":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions. Manager role required.")
+    return current_user
+
+def require_user(current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "user":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions. User role required.")
+    return current_user
