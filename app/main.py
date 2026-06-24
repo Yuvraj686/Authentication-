@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import auth, admin_routes, manager_routes, user_routes
 from app.database import is_mock_db
+from app.routes import message_routes, group, websocket_manager
 
 app = FastAPI(
     title="User Authentication API",
@@ -9,7 +10,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS Middleware config
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,11 +18,14 @@ app.add_middleware(
     allow_methods=["*"],
 )
 
-# Include the Routers
 app.include_router(auth.router)
 app.include_router(admin_routes.router)
 app.include_router(manager_routes.router)
 app.include_router(user_routes.router)
+app.include_router(message_routes.router)
+app.include_router(group.router)
+app.include_router(websocket_manager.router)
+
 
 @app.get("/")
 def read_root():
