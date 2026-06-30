@@ -8,6 +8,14 @@ from .websocket_manager import manager
 router = APIRouter(prefix="/messages", tags=["Messages"])
 
 
+def utc_iso(dt):
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat(timespec='milliseconds')
+
+
 def serialize_message(msg):
     return {
         "id":          str(msg["_id"]),
@@ -15,7 +23,7 @@ def serialize_message(msg):
         "receiver_id": str(msg["receiver_id"]),
         "content":     msg["content"],
         "is_read":     msg.get("is_read", False),
-        "created_at":  msg["created_at"],
+        "created_at":  utc_iso(msg["created_at"]),
     }
 
 

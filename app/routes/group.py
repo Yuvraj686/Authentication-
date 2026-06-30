@@ -8,13 +8,21 @@ from .websocket_manager import manager
 router = APIRouter(prefix="/groups", tags=["Groups"])
 
 
+def utc_iso(dt):
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat(timespec='milliseconds')
+
+
 def serialize_group(group: dict) -> dict:
     return {
         "id":         str(group["_id"]),
         "name":       group["name"],
         "admin_id":   str(group["admin_id"]),
         "member_ids": [str(m) for m in group["member_ids"]],
-        "created_at": group["created_at"],
+        "created_at": utc_iso(group["created_at"]),
     }
 
 
@@ -24,7 +32,7 @@ def serialize_group_message(msg: dict) -> dict:
         "group_id":   str(msg["group_id"]),
         "sender_id":  str(msg["sender_id"]),
         "content":    msg["content"],
-        "created_at": msg["created_at"],
+        "created_at": utc_iso(msg["created_at"]),
     }
 
 
