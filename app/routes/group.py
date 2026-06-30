@@ -157,7 +157,7 @@ async def send_group_message(group_id: str, payload: GroupMessageCreate, current
         "group_id":   group_id,
         "sender_id":  current_user["id"],
         "content":    payload.content,
-        "created_at": created_at.isoformat(),
+        "created_at": created_at.isoformat(timespec='milliseconds'),
     }
     await manager.send_to_group(member_ids, ws_payload)
 

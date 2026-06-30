@@ -51,7 +51,7 @@ async def send_message(
         "receiver_id": payload.receiver_id,
         "content":     payload.content,
         "is_read":     False,
-        "created_at":  created_at.isoformat(),
+        "created_at":  created_at.isoformat(timespec='milliseconds'),
     }
     await manager.send_to_user(current_user["id"], ws_payload)
     await manager.send_to_user(payload.receiver_id, ws_payload)
