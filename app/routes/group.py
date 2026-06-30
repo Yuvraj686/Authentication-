@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from .. import oauth2, database
 from ..schemas import GroupCreate, GroupOut, AddMemberRequest, GroupMessageCreate, GroupMessageOut
+from .websocket_manager import manager
 
 router = APIRouter(prefix="/groups", tags=["Groups"])
 
@@ -129,7 +130,7 @@ def delete_group(group_id: str, current_user: dict = Depends(oauth2.get_current_
 
 
 @router.post("/{group_id}/messages", status_code=status.HTTP_201_CREATED)
-def send_group_message(group_id: str, payload: GroupMessageCreate, current_user: dict = Depends(oauth2.get_current_user), db=Depends(database.get_db)):
+async def send_group_message(group_id: str, payload: GroupMessageCreate, current_user: dict = Depends(oauth2.get_current_user), db=Depends(database.get_db)):
     try:
         group_obj_id = ObjectId(group_id)
     except Exception:
@@ -139,14 +140,28 @@ def send_group_message(group_id: str, payload: GroupMessageCreate, current_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found.")
     if ObjectId(current_user["id"]) not in group["member_ids"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not a member of this group.")
+    created_at = datetime.now(timezone.utc)
     message_doc = {
         "group_id":   group_obj_id,
         "sender_id":  current_user["id"],
         "content":    payload.content,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": created_at,
     }
     result = db.group_messages.insert_one(message_doc)
-    return {"message": "Message sent to group.", "message_id": str(result.inserted_id)}
+    message_id = str(result.inserted_id)
+
+    member_ids = [str(m) for m in group["member_ids"]]
+    ws_payload = {
+        "type":       "group_message",
+        "id":         message_id,
+        "group_id":   group_id,
+        "sender_id":  current_user["id"],
+        "content":    payload.content,
+        "created_at": created_at.isoformat(),
+    }
+    await manager.send_to_group(member_ids, ws_payload)
+
+    return {"message": "Message sent to group.", "message_id": message_id}
 
 
 @router.get("/{group_id}/messages", response_model=list[GroupMessageOut])

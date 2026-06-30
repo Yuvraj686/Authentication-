@@ -338,10 +338,107 @@ export default function GroupChatPage({ onLogout }) {
   const [sendingMsg, setSendingMsg] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
-  const [pollTimer, setPollTimer] = useState(null);
+  const [wsStatus, setWsStatus] = useState("connecting");
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const wsRef = useRef(null);
+  const reconnectTimer = useRef(null);
+  const reconnectDelay = useRef(1000);
+
+  const activeGroupRef = useRef(activeGroup);
+  const activeDMUserRef = useRef(activeDMUser);
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => { activeGroupRef.current = activeGroup; }, [activeGroup]);
+  useEffect(() => { activeDMUserRef.current = activeDMUser; }, [activeDMUser]);
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+
+  const connectWebSocket = useCallback(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    const ws = new WebSocket(`ws://127.0.0.1:8000/ws?token=${token}`);
+    wsRef.current = ws;
+    setWsStatus("connecting");
+
+    ws.onopen = () => {
+      setWsStatus("open");
+      reconnectDelay.current = 1000;
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        const tab = activeTabRef.current;
+        const group = activeGroupRef.current;
+        const dmUser = activeDMUserRef.current;
+
+        if (msg.type === "group_message") {
+          // Only append if the user is currently viewing this group
+          if (tab === "groups" && group && group.id === msg.group_id) {
+            setMessages((prev) => {
+              const optimIdx = prev.findIndex(
+                (m) => m.optimistic && m.sender_id === msg.sender_id && m.content === msg.content
+              );
+              if (optimIdx !== -1) {
+                const next = [...prev];
+                next[optimIdx] = msg;
+                return next;
+              }
+              if (prev.some((m) => m.id === msg.id)) return prev;
+              return [...prev, msg];
+            });
+          }
+        } else if (msg.type === "dm_message") {
+          if (tab === "messages" && dmUser) {
+            const { user_id: myId } = decodeJWT(localStorage.getItem("access_token"));
+            const isRelevant =
+              (msg.sender_id === myId && msg.receiver_id === dmUser.id) ||
+              (msg.sender_id === dmUser.id && msg.receiver_id === myId);
+            if (isRelevant) {
+              setMessages((prev) => {
+                const optimIdx = prev.findIndex(
+                  (m) => m.optimistic && m.sender_id === msg.sender_id && m.content === msg.content
+                );
+                if (optimIdx !== -1) {
+                  const next = [...prev];
+                  next[optimIdx] = msg;
+                  return next;
+                }
+                if (prev.some((m) => m.id === msg.id)) return prev;
+                return [...prev, msg];
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("WS parse error", e);
+      }
+    };
+
+    ws.onclose = () => {
+      setWsStatus("closed");
+      reconnectTimer.current = setTimeout(() => {
+        reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000);
+        connectWebSocket();
+      }, reconnectDelay.current);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    connectWebSocket();
+    return () => {
+      clearTimeout(reconnectTimer.current);
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+      }
+    };
+  }, [connectWebSocket]);
 
   useEffect(() => {
     (async () => {
@@ -389,15 +486,11 @@ export default function GroupChatPage({ onLogout }) {
   }, [activeTab, activeGroup, activeDMUser]);
 
   useEffect(() => {
-    clearInterval(pollTimer);
     setMessages([]);
 
     if ((activeTab === "groups" && activeGroup) || (activeTab === "messages" && activeDMUser)) {
       setLoadingMsgs(true);
       loadMessages().finally(() => setLoadingMsgs(false));
-      const t = setInterval(loadMessages, 4000);
-      setPollTimer(t);
-      return () => clearInterval(t);
     }
   }, [activeGroup, activeDMUser, activeTab, loadMessages]);
 
@@ -432,12 +525,8 @@ export default function GroupChatPage({ onLogout }) {
     try {
       if (activeTab === "groups") {
         await sendGroupMessage(activeGroup.id, text);
-        const fresh = await fetchMessages(activeGroup.id);
-        setMessages(fresh || []);
       } else {
         await sendDM(activeDMUser.id, text);
-        const fresh = await fetchDMMessages(activeDMUser.id);
-        setMessages(fresh || []);
       }
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
@@ -528,6 +617,29 @@ export default function GroupChatPage({ onLogout }) {
           </div>
         </div>
         <div className="chat-nav__actions">
+          {/* WebSocket live indicator */}
+          <span
+            title={wsStatus === "open" ? "Connected (live)" : "Reconnecting…"}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.3rem",
+              fontSize: "0.7rem",
+              fontFamily: "var(--font-mono)",
+              color: wsStatus === "open" ? "#4ade80" : "#facc15",
+              opacity: 0.85,
+            }}
+          >
+            <span style={{
+              width: "0.45rem",
+              height: "0.45rem",
+              borderRadius: "50%",
+              backgroundColor: wsStatus === "open" ? "#4ade80" : "#facc15",
+              boxShadow: wsStatus === "open" ? "0 0 6px #4ade80" : "0 0 6px #facc15",
+              animation: wsStatus === "open" ? "none" : "pulse 1.2s ease infinite",
+            }} />
+            {wsStatus === "open" ? "Live" : "Reconnecting"}
+          </span>
           <button
             id="btn-logout-chat"
             className="icon-btn"

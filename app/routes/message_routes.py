@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from .. import oauth2, database
 from ..schemas import MessageCreate, MessageOut
+from .websocket_manager import manager
 
 router = APIRouter(prefix="/messages", tags=["Messages"])
 
@@ -19,7 +20,7 @@ def serialize_message(msg):
 
 
 @router.post("/send", status_code=status.HTTP_201_CREATED)
-def send_message(
+async def send_message(
     payload: MessageCreate,
     current_user: dict = Depends(oauth2.get_current_user),
     db=Depends(database.get_db),
@@ -32,15 +33,30 @@ def send_message(
         raise HTTPException(status_code=400, detail="Invalid receiver_id format.")
     if not db.users.find_one({"_id": receiver_obj_id}):
         raise HTTPException(status_code=404, detail="Receiver not found.")
+    created_at = datetime.now(timezone.utc)
     doc = {
         "sender_id":   current_user["id"],
         "receiver_id": payload.receiver_id,
         "content":     payload.content,
         "is_read":     False,
-        "created_at":  datetime.now(timezone.utc),
+        "created_at":  created_at,
     }
     result = db.messages.insert_one(doc)
-    return {"message": "Message sent successfully.", "message_id": str(result.inserted_id)}
+    message_id = str(result.inserted_id)
+
+    ws_payload = {
+        "type":        "dm_message",
+        "id":          message_id,
+        "sender_id":   current_user["id"],
+        "receiver_id": payload.receiver_id,
+        "content":     payload.content,
+        "is_read":     False,
+        "created_at":  created_at.isoformat(),
+    }
+    await manager.send_to_user(current_user["id"], ws_payload)
+    await manager.send_to_user(payload.receiver_id, ws_payload)
+
+    return {"message": "Message sent successfully.", "message_id": message_id}
 
 
 @router.get("/conversation/{user_id}", response_model=list[MessageOut])
