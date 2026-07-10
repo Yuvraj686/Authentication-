@@ -58,14 +58,6 @@ async def websocket_endpoint(
     websocket: WebSocket,
     token: str = Query(...),
 ):
-    """
-    Clients connect with their JWT as a query param:
-      ws://127.0.0.1:8000/ws?token=<access_token>
-
-    The server keeps the socket alive and pushes new messages
-    (group_message / dm_message) to the client in real-time.
-    """
-    # ── Authenticate ──────────────────────────
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = str(payload.get("user_id"))
@@ -76,11 +68,8 @@ async def websocket_endpoint(
         await websocket.close(code=4001)
         return
 
-    # ── Register ──────────────────────────────
     await manager.connect(websocket, user_id)
     try:
-        # Keep the connection alive; the server only *sends* to the client.
-        # The client may send pings or any text — we just discard it.
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
