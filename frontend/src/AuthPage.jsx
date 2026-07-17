@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
 import "./auth.css";
 import { apiRegister, apiLogin } from "./api/auth";
 import Button from "./components/Button";
@@ -20,7 +22,9 @@ function useMouseGlow() {
   }, []);
 }
 
-export default function AuthPage({ onAuthSuccess }) {
+export default function AuthPage() {
+  const { login } = useAuth();
+  const navigate = useNavigate();
   useMouseGlow();
 
   const [mode, setMode] = useState("login");
@@ -48,9 +52,9 @@ export default function AuthPage({ onAuthSuccess }) {
     setLoading(true); clearFb();
     try {
       const data = await apiLogin({ email, password });
-      localStorage.setItem("access_token", data.access_token);
+      login(data.access_token);
       setSuccess("Login successful! Redirecting…");
-      setTimeout(() => onAuthSuccess?.(data.access_token), 1000);
+      setTimeout(() => navigate("/chat", { replace: true }), 1000);
     } catch (err) {
       setError(err.message);
     } finally {

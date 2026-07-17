@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
 import "./chat.css";
 
 import { decodeJWT, getInitials, formatTime, formatDate } from "./utils";
@@ -16,8 +18,9 @@ import CreateGroupModal from "./components/CreateGroupModal";
 import MessageBubble from "./components/MessageBubble";
 import ChatDrawer from "./components/ChatDrawer";
 
-export default function GroupChatPage({ onLogout }) {
-  const token = localStorage.getItem("access_token");
+export default function GroupChatPage() {
+  const { token, logout } = useAuth();
+  const navigate = useNavigate();
   const { user_id: currentUserId } = decodeJWT(token);
 
   const [activeTab, setActiveTab] = useState("groups");
@@ -248,6 +251,11 @@ export default function GroupChatPage({ onLogout }) {
 
   const displayedUsers = users.filter(u => u.id !== currentUserId);
 
+  const handleLogout = () => {
+    logout();
+    navigate("/auth", { replace: true });
+  };
+
   return (
     <div className="chat-page">
       <Header
@@ -255,7 +263,7 @@ export default function GroupChatPage({ onLogout }) {
         wsStatus={wsStatus}
         currentUserInitials={getInitials(usersMap[currentUserId] || "Me")}
         onTabChange={handleTabChange}
-        onLogout={onLogout}
+        onLogout={handleLogout}
       />
 
       <div className="chat-workspace">

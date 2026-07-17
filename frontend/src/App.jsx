@@ -1,23 +1,13 @@
-import { useState } from "react";
-import AuthPage from "./AuthPage";
-import GroupChatPage from "./GroupChatPage";
-import "./auth.css";
+import { RouterProvider } from "react-router-dom";
+import router from "./router/router";
 
+/**
+ * App — thin shell that hands control to the centralized router.
+ *
+ * All auth state lives in AuthContext (provided by main.jsx).
+ * All routing logic lives in router/router.jsx.
+ * This component has no responsibilities beyond mounting the router.
+ */
 export default function App() {
-  const [token, setToken] = useState(() => localStorage.getItem("access_token"));
-
-  const handleAuthSuccess = (accessToken) => {
-    setToken(accessToken);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    setToken(null);
-  };
-
-  if (!token) {
-    return <AuthPage onAuthSuccess={handleAuthSuccess} />;
-  }
-
-  return <GroupChatPage onLogout={handleLogout} />;
+  return <RouterProvider router={router} />;
 }
