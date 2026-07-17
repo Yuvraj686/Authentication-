@@ -1,10 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-/**
- * NotFoundPage — catch-all 404 route.
- * Styled to match AetherChat's dark obsidian aesthetic.
- */
 export default function NotFoundPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -13,7 +9,6 @@ export default function NotFoundPage() {
 
   return (
     <div style={styles.page}>
-      {/* Ambient glow */}
       <div style={styles.glow} />
 
       <div style={styles.card}>

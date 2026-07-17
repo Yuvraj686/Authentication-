@@ -356,7 +356,7 @@ export default function GroupChatPage() {
           </div>
 
           <div className="sidebar-footer">
-            <Button className="sidebar-footer-link" onClick={onLogout} id="sidebar-btn-logout">
+            <Button className="sidebar-footer-link" onClick={handleLogout} id="sidebar-btn-logout">
               <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>logout</span>
               Sign Out
             </Button>
